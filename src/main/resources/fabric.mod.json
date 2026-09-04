@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "simple-cheat",
+  "version": "${version}",
+  "name": "Simple Cheat",
+  "description": "一个纯客户端的轻量作弊模组，用于降低单人游戏难度。",
+  "authors": [
+    "keyboard"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.keyboard.simplecheat.SimpleCheatClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}
