@@ -16,10 +16,13 @@ import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.entity.projectile.ShulkerBulletEntity;
 import net.minecraft.entity.projectile.thrown.PotionEntity;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.shape.VoxelShape;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -38,6 +41,9 @@ public class AutoDodge extends Module {
     private static final double HIT_MARGIN = 0.3;
     private static final double AIR_DRAG = 0.99;
     private static final double GRAVITY = 0.05;
+    /** 安全检查沿路径的采样间隔，比一格小才不会漏掉窄坑。 */
+    private static final double PATH_SAMPLE_STEP = 0.5;
+    private static final double MAX_PATH_CHECK = 4.0;
 
     private final NumberSetting reactTicks = new NumberSetting("react_ticks", "提前反应时间",
             "预计命中还剩多少 tick 时开始躲，太大会频繁乱走", 20.0, 5.0, 60.0, 1.0);
@@ -47,6 +53,8 @@ public class AutoDodge extends Module {
             "移动更快更容易躲开，但会消耗饥饿值", true);
     private final BooleanSetting safetyCheck = new BooleanSetting("safety_check", "安全检查",
             "不往悬崖、岩浆、仙人掌等危险方向躲", true);
+    private final NumberSetting maxFallDistance = new NumberSetting("max_fall", "最大允许落差",
+            "躲避路上最多允许下落几格，超过 3 格开始摔血", 3.0, 0.0, 8.0, 1.0);
     private final BooleanSetting allowBackward = new BooleanSetting("allow_backward", "允许前后闪避",
             "横向躲不开时尝试前后移动", true);
     private final BooleanSetting onlyOnGround = new BooleanSetting("only_on_ground", "仅在地面上",
@@ -60,7 +68,8 @@ public class AutoDodge extends Module {
 
     public AutoDodge() {
         super("auto_dodge", "自动闪避", "预测投射物落点并走位躲开", Category.MOVEMENT, GLFW.GLFW_KEY_V);
-        addSettings(reactTicks, fullDodgeOnly, sprint, safetyCheck, allowBackward, onlyOnGround, onlyHarmful);
+        addSettings(reactTicks, fullDodgeOnly, sprint, safetyCheck, maxFallDistance,
+                allowBackward, onlyOnGround, onlyHarmful);
     }
 
     public boolean isDodging() {
@@ -202,8 +211,11 @@ public class AutoDodge extends Module {
         int fewestHits = Integer.MAX_VALUE;
         double bestAlignment = -Double.MAX_VALUE;
 
+        // 躲避会持续到预测窗口结束，安全检查要覆盖这段路可能走到的最远处
+        double checkDistance = Math.min(MAX_PATH_CHECK, speed * horizon);
+
         for (Vec3d candidate : candidates) {
-            if (safetyCheck.get() && !isSafeDirection(candidate)) {
+            if (safetyCheck.get() && !isSafeDirection(candidate, checkDistance)) {
                 continue;
             }
 
@@ -233,9 +245,22 @@ public class AutoDodge extends Module {
         return sprint.get() ? 0.22 : 0.17;
     }
 
-    private boolean isSafeDirection(Vec3d direction) {
-        Vec3d target = mc.player.getPos().add(direction.multiply(1.5));
-        BlockPos feet = BlockPos.ofFloored(target);
+    /**
+     * 沿整条躲避路径采样，而不是只看落点。躲避会持续好几 tick，
+     * 只检查一个点的话，两格外是平地、四格外是悬崖的地形照样会走下去。
+     */
+    private boolean isSafeDirection(Vec3d direction, double maxDistance) {
+        Vec3d origin = mc.player.getPos();
+        for (double distance = PATH_SAMPLE_STEP; distance <= maxDistance + 1.0E-6; distance += PATH_SAMPLE_STEP) {
+            if (!isSafeAt(origin.add(direction.multiply(distance)))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isSafeAt(Vec3d point) {
+        BlockPos feet = BlockPos.ofFloored(point);
 
         if (isBlocked(feet) || isBlocked(feet.up())) {
             return false;
@@ -243,21 +268,48 @@ public class AutoDodge extends Module {
         if (isHazard(feet) || isHazard(feet.up())) {
             return false;
         }
-        // 脚下连续两格空气就当成悬崖
-        BlockPos below = feet.down();
-        if (mc.world.getBlockState(below).isAir() && mc.world.getBlockState(below.down()).isAir()) {
+        // 踩在半砖之类的矮台阶上会整体抬高，多留一格头顶空间
+        if (!mc.world.getBlockState(feet).getCollisionShape(mc.world, feet).isEmpty()
+                && isBlocked(feet.up(2))) {
             return false;
         }
-        return !isHazard(below);
+
+        // 一路向下找落脚点，超过允许落差就当悬崖
+        int maxDrop = maxFallDistance.getInt();
+        BlockPos below = feet.down();
+        for (int drop = 0; drop <= maxDrop; drop++) {
+            if (isHazard(below)) {
+                return false;
+            }
+            if (hasSupport(below)) {
+                return true;
+            }
+            below = below.down();
+        }
+        return false;
     }
 
+    /** 碰撞箱顶部低于抬腿高度的（半砖、地毯之类）能直接走上去，不算挡路。 */
     private boolean isBlocked(BlockPos pos) {
-        return !mc.world.getBlockState(pos).getCollisionShape(mc.world, pos).isEmpty();
+        VoxelShape shape = mc.world.getBlockState(pos).getCollisionShape(mc.world, pos);
+        if (shape.isEmpty()) {
+            return false;
+        }
+        return shape.getMax(Direction.Axis.Y) > mc.player.getStepHeight();
+    }
+
+    /** 判断能不能落脚。水虽然没有碰撞箱，但能接住人且不摔伤，算安全落点。 */
+    private boolean hasSupport(BlockPos pos) {
+        BlockState state = mc.world.getBlockState(pos);
+        if (state.getFluidState().isIn(FluidTags.WATER)) {
+            return true;
+        }
+        return !state.getCollisionShape(mc.world, pos).isEmpty();
     }
 
     private boolean isHazard(BlockPos pos) {
         BlockState state = mc.world.getBlockState(pos);
-        if (!state.getFluidState().isEmpty() && state.getFluidState().isIn(net.minecraft.registry.tag.FluidTags.LAVA)) {
+        if (state.getFluidState().isIn(FluidTags.LAVA)) {
             return true;
         }
         return state.isOf(Blocks.FIRE)

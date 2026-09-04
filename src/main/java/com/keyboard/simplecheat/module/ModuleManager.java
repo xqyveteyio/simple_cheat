@@ -3,6 +3,7 @@ package com.keyboard.simplecheat.module;
 import com.keyboard.simplecheat.module.combat.KillAura;
 import com.keyboard.simplecheat.module.combat.RangedDefense;
 import com.keyboard.simplecheat.module.movement.AutoDodge;
+import com.keyboard.simplecheat.module.movement.Scaffold;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,11 +14,13 @@ public class ModuleManager {
     private final KillAura killAura = new KillAura();
     private final RangedDefense rangedDefense = new RangedDefense();
     private final AutoDodge autoDodge = new AutoDodge();
+    private final Scaffold scaffold = new Scaffold();
 
     public ModuleManager() {
         modules.add(killAura);
         modules.add(rangedDefense);
         modules.add(autoDodge);
+        modules.add(scaffold);
     }
 
     public List<Module> getModules() {
@@ -34,6 +37,10 @@ public class ModuleManager {
 
     public AutoDodge getAutoDodge() {
         return autoDodge;
+    }
+
+    public Scaffold getScaffold() {
+        return scaffold;
     }
 
     public Module getById(String id) {

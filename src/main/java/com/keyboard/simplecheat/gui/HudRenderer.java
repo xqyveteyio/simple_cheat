@@ -5,6 +5,7 @@ import com.keyboard.simplecheat.module.ModuleManager;
 import com.keyboard.simplecheat.module.combat.KillAura;
 import com.keyboard.simplecheat.module.combat.RangedDefense;
 import com.keyboard.simplecheat.module.movement.AutoDodge;
+import com.keyboard.simplecheat.module.movement.Scaffold;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -21,6 +22,7 @@ public final class HudRenderer {
     private static final int COLOR_THREAT = 0xFF7FB3FF;
     private static final int COLOR_DODGE = 0xFFB388FF;
     private static final int COLOR_DANGER = 0xFFFF6B6B;
+    private static final int COLOR_SCAFFOLD = 0xFFFFD98E;
 
     private HudRenderer() {
     }
@@ -64,8 +66,16 @@ public final class HudRenderer {
             String info = autoDodge.isDodging()
                     ? "闪避中 x" + autoDodge.getIncomingCount()
                     : "无法闪避 x" + autoDodge.getIncomingCount();
-            drawRightAligned(context, textRenderer, info, screenWidth, y,
+            y = drawRightAligned(context, textRenderer, info, screenWidth, y,
                     autoDodge.isDodging() ? COLOR_DODGE : COLOR_DANGER);
+        }
+
+        Scaffold scaffold = moduleManager.getScaffold();
+        if (scaffold.isEnabled()) {
+            int blocks = scaffold.getAvailableBlocks();
+            String info = blocks > 0 ? "搭路: " + blocks : "搭路: 没有方块了";
+            drawRightAligned(context, textRenderer, info, screenWidth, y,
+                    blocks > 0 ? COLOR_SCAFFOLD : COLOR_DANGER);
         }
     }
 
