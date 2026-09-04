@@ -2,6 +2,7 @@ package com.keyboard.simplecheat.module;
 
 import com.keyboard.simplecheat.module.combat.KillAura;
 import com.keyboard.simplecheat.module.combat.RangedDefense;
+import com.keyboard.simplecheat.module.movement.AutoDodge;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,10 +12,12 @@ public class ModuleManager {
 
     private final KillAura killAura = new KillAura();
     private final RangedDefense rangedDefense = new RangedDefense();
+    private final AutoDodge autoDodge = new AutoDodge();
 
     public ModuleManager() {
         modules.add(killAura);
         modules.add(rangedDefense);
+        modules.add(autoDodge);
     }
 
     public List<Module> getModules() {
@@ -27,6 +30,10 @@ public class ModuleManager {
 
     public RangedDefense getRangedDefense() {
         return rangedDefense;
+    }
+
+    public AutoDodge getAutoDodge() {
+        return autoDodge;
     }
 
     public Module getById(String id) {
