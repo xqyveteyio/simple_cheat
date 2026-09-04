@@ -1,5 +1,6 @@
 package com.keyboard.simplecheat.module.combat;
 
+import com.keyboard.simplecheat.SimpleCheatClient;
 import com.keyboard.simplecheat.module.Category;
 import com.keyboard.simplecheat.module.Module;
 import com.keyboard.simplecheat.module.setting.BooleanSetting;
@@ -21,6 +22,7 @@ import net.minecraft.entity.passive.GolemEntity;
 import net.minecraft.entity.passive.MerchantEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ShieldItem;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
@@ -172,7 +174,10 @@ public class KillAura extends Module {
         if (!player.isAlive() || player.isSpectator()) {
             return false;
         }
-        if (pauseWhileUsingItem.get() && player.isUsingItem()) {
+        // 举盾要排除在外：原版举盾时不能攻击纯粹是客户端输入层拦的，
+        // 服务端不管这事，所以这里可以边举盾边打，正好配合远程防护模块。
+        if (pauseWhileUsingItem.get() && player.isUsingItem()
+                && !(player.getActiveItem().getItem() instanceof ShieldItem)) {
             return false;
         }
         if (pauseInScreen.get() && mc.currentScreen != null && !(mc.currentScreen instanceof ChatScreen)) {
@@ -265,6 +270,11 @@ public class KillAura extends Module {
                     RotationUtil.getRotationsTo(eyePos, EntityUtil.getAimPoint(eyePos, e)))));
         } else {
             targets.sort(Comparator.comparingDouble(e -> EntityUtil.distanceToBox(eyePos, e)));
+        }
+
+        // List#sort 是稳定排序，所以这一步只是把远程敌人整体提前，各自组内仍保持上面的顺序
+        if (SimpleCheatClient.getModuleManager().getRangedDefense().shouldPrioritizeRanged()) {
+            targets.sort(Comparator.comparing(entity -> !RangedDefense.isRangedAttacker(entity)));
         }
     }
 

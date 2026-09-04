@@ -3,9 +3,11 @@ package com.keyboard.simplecheat.gui;
 import com.keyboard.simplecheat.module.Module;
 import com.keyboard.simplecheat.module.ModuleManager;
 import com.keyboard.simplecheat.module.combat.KillAura;
+import com.keyboard.simplecheat.module.combat.RangedDefense;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 
 import java.util.List;
@@ -15,6 +17,7 @@ public final class HudRenderer {
     private static final int COLOR_BACKGROUND = 0x60000000;
     private static final int COLOR_MODULE = 0xFF6FE3A0;
     private static final int COLOR_TARGET = 0xFFFFC66D;
+    private static final int COLOR_THREAT = 0xFF7FB3FF;
 
     private HudRenderer() {
     }
@@ -43,7 +46,14 @@ public final class HudRenderer {
         if (killAura.isEnabled() && target != null) {
             String info = String.format(Locale.ROOT, "目标: %s  %.1f♥",
                     target.getName().getString(), target.getHealth() + target.getAbsorptionAmount());
-            drawRightAligned(context, textRenderer, info, screenWidth, y, COLOR_TARGET);
+            y = drawRightAligned(context, textRenderer, info, screenWidth, y, COLOR_TARGET);
+        }
+
+        RangedDefense rangedDefense = moduleManager.getRangedDefense();
+        Entity threat = rangedDefense.getCurrentThreat();
+        if (rangedDefense.isEnabled() && threat != null) {
+            String info = "格挡: " + threat.getName().getString();
+            drawRightAligned(context, textRenderer, info, screenWidth, y, COLOR_THREAT);
         }
     }
 
